@@ -1,0 +1,107 @@
+using System;
+using System.IO;
+using System.Collections.Generic;
+
+
+
+namespace Meshomatic
+{
+	public class ObjLoader {
+		public MeshData LoadStream(Stream stream) {
+			StreamReader reader = new StreamReader(stream);
+			List<Vector3> points = new List<Vector3>();
+			List<Vector3> normals = new List<Vector3>();
+			List<Vector2> texCoords = new List<Vector2>();
+			List<Tri> tris = new List<Tri>();
+			string line;
+			char[] splitChars = {' '};
+			while ((line = reader.ReadLine()) != null) {
+				line = line.Trim(splitChars);
+				line = line.Replace("  ", " ");
+
+				string[] parameters = line.Split(splitChars);
+
+				switch(parameters[0]) {
+				case "p": // Point
+					break;
+
+				case "v": // Vertex
+                    float x = float.Parse(parameters[1]);
+					float y = float.Parse(parameters[2]);
+					float z = float.Parse(parameters[3]);
+					points.Add(new Vector3(x, y, z));																				
+                    break;
+
+                case "vt": // TexCoord
+                    float u = float.Parse(parameters[1]);
+                    float v = float.Parse(parameters[2]);
+                    texCoords.Add(new Vector2(u, v));
+                    break;
+
+                case "vn": // Normal
+                    float nx = float.Parse(parameters[1]);
+                    float ny = float.Parse(parameters[2]);
+                    float nz = float.Parse(parameters[3]);
+                    normals.Add(new Vector3(nx, ny, nz));
+                    break;
+
+                case "f": // Face
+					tris.AddRange(parseFace(parameters));
+					break;
+            	}
+			}
+			
+			Vector3[] p = points.ToArray();
+			Vector2[] tc = texCoords.ToArray();
+			Vector3[] n = normals.ToArray();
+			Tri[] f = tris.ToArray();
+				
+			return new MeshData(p, n, tc, f);
+		}
+
+		public MeshData LoadFile(string file) {
+			using(FileStream s = File.Open(file, FileMode.Open)) {
+				MeshData mesh = LoadStream(s);
+				s.Close();
+				return mesh;
+			}
+		}
+		
+		private static Tri[] parseFace(string[] indices) {
+			Point[] p = new Point[indices.Length-1];
+			for(int i = 0; i < p.Length; i++) {
+				p[i] = parsePoint(indices[i+1]);
+			}
+			return Triangulate(p);
+			//return new Face(p);
+		}
+		
+		// Takes an array of points and returns an array of triangles.
+		// The points form an arbitrary polygon.
+		private static Tri[] Triangulate(Point[] ps) {
+			List<Tri> ts = new List<Tri>();
+			if(ps.Length < 3) {
+				throw new Exception("Invalid shape!  Must have >2 points");
+			}
+			
+			Point lastButOne = ps[1];
+			Point lastButTwo = ps[0];
+			for(int i = 2; i < ps.Length; i++) {
+				Tri t = new Tri(lastButTwo, lastButOne, ps[i]);
+				lastButOne = ps[i];
+				lastButTwo = ps[i-1];
+				ts.Add(t);
+			}
+			return ts.ToArray();
+		}
+		
+		private static Point parsePoint(string s) {
+			char[] splitChars = {'/'};
+			string[] parameters = s.Split(splitChars);
+			int vert = int.Parse(parameters[0]) - 1;
+			int tex = int.Parse(parameters[1]) - 1;
+			int norm = int.Parse(parameters[2]) - 1;
+			return new Point(vert, norm, tex);
+		}
+	}
+}
